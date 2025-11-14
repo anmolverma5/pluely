@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
-import { useWindowResize } from "@/hooks";
 import { useApp } from "@/contexts";
-import { extractVariables, safeLocalStorage } from "@/lib";
+import {
+  extractVariables,
+  safeLocalStorage,
+  deleteAllConversations,
+} from "@/lib";
 import { STORAGE_KEYS } from "@/config";
 
 export const useSettings = () => {
   const {
-    systemPrompt,
-    setSystemPrompt,
     screenshotConfiguration,
     setScreenshotConfiguration,
     allAiProviders,
@@ -16,9 +17,8 @@ export const useSettings = () => {
     selectedSttProvider,
     onSetSelectedAIProvider,
     onSetSelectedSttProvider,
+    hasActiveLicense,
   } = useApp();
-  const { resizeWindow } = useWindowResize();
-  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [variables, setVariables] = useState<{ key: string; value: string }[]>(
     []
   );
@@ -30,10 +30,6 @@ export const useSettings = () => {
   >([]);
 
   const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false);
-
-  useEffect(() => {
-    resizeWindow(isPopoverOpen);
-  }, [isPopoverOpen, resizeWindow]);
 
   const handleScreenshotModeChange = (value: "auto" | "manual") => {
     const newConfig = { ...screenshotConfiguration, mode: value };
@@ -54,6 +50,9 @@ export const useSettings = () => {
   };
 
   const handleScreenshotEnabledChange = (enabled: boolean) => {
+    if (!enabled && !hasActiveLicense) {
+      return;
+    }
     const newConfig = { ...screenshotConfiguration, enabled };
     setScreenshotConfiguration(newConfig);
     safeLocalStorage.setItem(
@@ -86,16 +85,16 @@ export const useSettings = () => {
     }
   }, [selectedSttProvider.provider]);
 
-  const handleDeleteAllChatsConfirm = () => {
-    safeLocalStorage.removeItem(STORAGE_KEYS.CHAT_HISTORY);
-    setShowDeleteConfirmDialog(false);
+  const handleDeleteAllChatsConfirm = async () => {
+    try {
+      await deleteAllConversations();
+      setShowDeleteConfirmDialog(false);
+    } catch (error) {
+      console.error("Failed to delete all conversations:", error);
+    }
   };
 
   return {
-    isPopoverOpen,
-    setIsPopoverOpen,
-    systemPrompt,
-    setSystemPrompt,
     screenshotConfiguration,
     setScreenshotConfiguration,
     handleScreenshotModeChange,
@@ -112,5 +111,6 @@ export const useSettings = () => {
     setShowDeleteConfirmDialog,
     variables,
     sttVariables,
+    hasActiveLicense,
   };
 };

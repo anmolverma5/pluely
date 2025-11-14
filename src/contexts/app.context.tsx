@@ -4,20 +4,29 @@ import {
   SPEECH_TO_TEXT_PROVIDERS,
   STORAGE_KEYS,
 } from "@/config";
-import { safeLocalStorage } from "@/lib";
+import { getPlatform, safeLocalStorage, trackAppStart } from "@/lib";
+import { getShortcutsConfig } from "@/lib/storage";
 import {
   getCustomizableState,
+  setCustomizableState,
   updateAppIconVisibility,
   updateAlwaysOnTop,
   updateTransparency,
   updateTransparencyOpacity as updateTransparencyOpacityStorage,
   updatePopoverTrigger,
   updatePopoverTriggerOpacity,
+  updateAutostart,
   CustomizableState,
+  DEFAULT_CUSTOMIZABLE_STATE,
+  CursorType,
+  updateCursorType,
 } from "@/lib/storage";
 import { IContextType, ScreenshotConfig, TYPE_PROVIDER } from "@/types";
+import curl2Json from "@bany/curl-to-json";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { enable, disable } from "@tauri-apps/plugin-autostart";
 import {
   ReactNode,
   createContext,
@@ -25,6 +34,40 @@ import {
   useEffect,
   useState,
 } from "react";
+
+const validateAndProcessCurlProviders = (
+  providersJson: string,
+  providerType: "AI" | "STT"
+): TYPE_PROVIDER[] => {
+  try {
+    const parsed = JSON.parse(providersJson);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .filter((p) => {
+        try {
+          curl2Json(p.curl);
+          return true;
+        } catch (e) {
+          return false;
+        }
+
+        return true;
+      })
+      .map((p) => {
+        const provider = { ...p, isCustom: true };
+        if (providerType === "STT" && provider.curl) {
+          provider.curl = provider.curl.replace(/AUDIO_BASE64/g, "AUDIO");
+        }
+        return provider;
+      });
+  } catch (e) {
+    console.warn(`Failed to parse custom ${providerType} providers`, e);
+    return [];
+  }
+};
 
 // Create the context
 const AppContext = createContext<IContextType | undefined>(undefined);
@@ -35,6 +78,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     safeLocalStorage.getItem(STORAGE_KEYS.SYSTEM_PROMPT) ||
       DEFAULT_SYSTEM_PROMPT
   );
+
+  const [selectedAudioDevices, setSelectedAudioDevices] = useState<{
+    input: string;
+    output: string;
+  }>({
+    input:
+      safeLocalStorage.getItem(STORAGE_KEYS.SELECTED_AUDIO_INPUT_DEVICE) || "",
+    output:
+      safeLocalStorage.getItem(STORAGE_KEYS.SELECTED_AUDIO_OUTPUT_DEVICE) || "",
+  });
 
   // AI Providers
   const [customAiProviders, setCustomAiProviders] = useState<TYPE_PROVIDER[]>(
@@ -68,17 +121,50 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
 
   // Unified Customizable State
-  const [customizable, setCustomizable] = useState<CustomizableState>({
-    appIcon: { isVisible: true },
-    alwaysOnTop: { isEnabled: true },
-    transparency: { isEnabled: true, opacity: 0.8 },
-    popoverTrigger: { isEnabled: true, opacity: 0.25 },
-  });
+  const [customizable, setCustomizable] = useState<CustomizableState>(
+    DEFAULT_CUSTOMIZABLE_STATE
+  );
+  const [hasActiveLicense, setHasActiveLicense] = useState<boolean>(false);
 
   // Pluely API State
   const [pluelyApiEnabled, setPluelyApiEnabledState] = useState<boolean>(
     safeLocalStorage.getItem(STORAGE_KEYS.PLUELY_API_ENABLED) === "true"
   );
+
+  const getActiveLicenseStatus = async () => {
+    const response: { is_active: boolean } = await invoke(
+      "validate_license_api"
+    );
+    setHasActiveLicense(response.is_active);
+    // Check if the auto configs are enabled
+    const autoConfigsEnabled = localStorage.getItem("auto-configs-enabled");
+    if (response.is_active && !autoConfigsEnabled) {
+      setScreenshotConfiguration({
+        mode: "auto",
+        autoPrompt: "Analyze the screenshot and provide insights",
+        enabled: false,
+      });
+      // Set the flag to true so that we don't change the mode again
+      localStorage.setItem("auto-configs-enabled", "true");
+    }
+  };
+
+  useEffect(() => {
+    const syncLicenseState = async () => {
+      try {
+        await invoke("set_license_status", {
+          hasLicense: hasActiveLicense,
+        });
+
+        const config = getShortcutsConfig();
+        await invoke("update_shortcuts", { config });
+      } catch (error) {
+        console.error("Failed to synchronize license state:", error);
+      }
+    };
+
+    syncLicenseState();
+  }, [hasActiveLicense]);
 
   // Function to load AI, STT, system prompt and screenshot config data from storage
   const loadData = () => {
@@ -103,7 +189,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             autoPrompt:
               parsed.autoPrompt ||
               "Analyze this screenshot and provide insights",
-            enabled: parsed.enabled !== undefined ? parsed.enabled : true,
+            enabled: parsed.enabled !== undefined ? parsed.enabled : false,
           });
         }
       } catch {
@@ -115,31 +201,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const savedAi = safeLocalStorage.getItem(STORAGE_KEYS.CUSTOM_AI_PROVIDERS);
     let aiList: TYPE_PROVIDER[] = [];
     if (savedAi) {
-      try {
-        const parsed = JSON.parse(savedAi);
-        if (Array.isArray(parsed)) {
-          aiList = parsed.map((p) => ({ ...p, isCustom: true }));
-        }
-      } catch {
-        console.warn("Failed to parse custom AI providers");
-      }
+      aiList = validateAndProcessCurlProviders(savedAi, "AI");
     }
     setCustomAiProviders(aiList);
 
-    // Load custom AI providers
+    // Load custom STT providers
     const savedStt = safeLocalStorage.getItem(
       STORAGE_KEYS.CUSTOM_SPEECH_PROVIDERS
     );
     let sttList: TYPE_PROVIDER[] = [];
     if (savedStt) {
-      try {
-        const parsed = JSON.parse(savedStt);
-        if (Array.isArray(parsed)) {
-          sttList = parsed.map((p) => ({ ...p, isCustom: true }));
-        }
-      } catch {
-        console.warn("Failed to parse custom AI providers");
-      }
+      sttList = validateAndProcessCurlProviders(savedStt, "STT");
     }
     setCustomSttProviders(sttList);
 
@@ -163,6 +235,26 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const customizableState = getCustomizableState();
     setCustomizable(customizableState);
 
+    updateCursor(customizableState.cursor.type || "invisible");
+
+    const stored = safeLocalStorage.getItem(STORAGE_KEYS.CUSTOMIZABLE);
+    if (!stored) {
+      // save the default state
+      setCustomizableState(customizableState);
+    } else {
+      // check if we need to update the schema
+      try {
+        const parsed = JSON.parse(stored);
+        if (!parsed.autostart) {
+          // save the merged state with new autostart property
+          setCustomizableState(customizableState);
+          updateCursor(customizableState.cursor.type || "invisible");
+        }
+      } catch (error) {
+        console.debug("Failed to check customizable state schema:", error);
+      }
+    }
+
     // Load Pluely API enabled state
     const savedPluelyApiEnabled = safeLocalStorage.getItem(
       STORAGE_KEYS.PLUELY_API_ENABLED
@@ -172,9 +264,52 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const updateCursor = (type: CursorType | undefined) => {
+    try {
+      const currentWindow = getCurrentWindow();
+      const platform = getPlatform();
+      // For Linux, always use default cursor
+      if (platform === "linux") {
+        document.documentElement.style.setProperty("--cursor-type", "default");
+        return;
+      }
+      const windowLabel = currentWindow.label;
+
+      if (windowLabel === "dashboard") {
+        // For dashboard, always use default cursor
+        document.documentElement.style.setProperty("--cursor-type", "default");
+        return;
+      }
+
+      // For overlay windows (main, capture-overlay-*)
+      const safeType = type || "invisible";
+      const cursorValue = type === "invisible" ? "none" : safeType;
+      document.documentElement.style.setProperty("--cursor-type", cursorValue);
+    } catch (error) {
+      document.documentElement.style.setProperty("--cursor-type", "default");
+    }
+  };
+
   // Load data on mount
   useEffect(() => {
+    const initializeApp = async () => {
+      // Load license and data
+      await getActiveLicenseStatus();
+
+      // Track app start
+      try {
+        const appVersion = await invoke<string>("get_app_version");
+        const storage = await invoke<{
+          instance_id: string;
+        }>("secure_storage_get");
+        await trackAppStart(appVersion, storage.instance_id || "");
+      } catch (error) {
+        console.debug("Failed to track app start:", error);
+      }
+    };
+    // Load data
     loadData();
+    initializeApp();
   }, []);
 
   // Handle customizable settings on state changes
@@ -196,6 +331,34 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
     applyCustomizableSettings();
   }, [customizable]);
+
+  useEffect(() => {
+    const initializeAutostart = async () => {
+      try {
+        const autostartInitialized = safeLocalStorage.getItem(
+          STORAGE_KEYS.AUTOSTART_INITIALIZED
+        );
+
+        // Only apply autostart on the very first launch
+        if (!autostartInitialized) {
+          const autostartEnabled = customizable?.autostart?.isEnabled ?? true;
+
+          if (autostartEnabled) {
+            await enable();
+          } else {
+            await disable();
+          }
+
+          // Mark as initialized so this never runs again
+          safeLocalStorage.setItem(STORAGE_KEYS.AUTOSTART_INITIALIZED, "true");
+        }
+      } catch (error) {
+        console.debug("Autostart initialization skipped:", error);
+      }
+    };
+
+    initializeAutostart();
+  }, []);
 
   // Listen for app icon hide/show events when window is toggled
   useEffect(() => {
@@ -341,6 +504,30 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     loadData();
   };
 
+  const toggleAutostart = async (isEnabled: boolean) => {
+    const newState = updateAutostart(isEnabled);
+    setCustomizable(newState);
+    try {
+      if (isEnabled) {
+        await enable();
+      } else {
+        await disable();
+      }
+      loadData();
+    } catch (error) {
+      console.error("Failed to toggle autostart:", error);
+      const revertedState = updateAutostart(!isEnabled);
+      setCustomizable(revertedState);
+    }
+  };
+
+  const setCursorType = (type: CursorType) => {
+    setCustomizable((prev) => ({ ...prev, cursor: { type } }));
+    updateCursor(type);
+    updateCursorType(type);
+    loadData();
+  };
+
   const updateTransparencyOpacity = async (opacity: number) => {
     const newState = updateTransparencyOpacityStorage(opacity);
     setCustomizable(newState);
@@ -388,9 +575,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     updateTransparencyOpacity,
     togglePopoverTrigger,
     updatePopoverTriggerOpacityValue,
+    toggleAutostart,
     loadData,
     pluelyApiEnabled,
     setPluelyApiEnabled,
+    hasActiveLicense,
+    setHasActiveLicense,
+    getActiveLicenseStatus,
+    selectedAudioDevices,
+    setSelectedAudioDevices,
+    setCursorType,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

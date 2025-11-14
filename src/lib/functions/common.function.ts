@@ -53,7 +53,9 @@ export function extractVariables(
 
   const uniqueVariables = [...new Set(variables)];
 
-  const doNotInclude = includeAll ? [] : ["SYSTEM_PROMPT", "TEXT", "IMAGE"];
+  const doNotInclude = includeAll
+    ? []
+    : ["SYSTEM_PROMPT", "TEXT", "IMAGE", "AUDIO"];
 
   const filteredVariables = uniqueVariables?.filter(
     (variable) => !doNotInclude?.includes(variable)
@@ -77,9 +79,12 @@ export function processUserMessageTemplate(
   userMessage: string,
   imagesBase64: string[] = []
 ): any {
+  const escapeForJson = (value: string) =>
+    JSON.stringify(value ?? "").slice(1, -1);
+
   const templateStr = JSON.stringify(template).replace(
     /\{\{TEXT\}\}/g,
-    userMessage
+    escapeForJson(userMessage)
   );
   const result = JSON.parse(templateStr);
 

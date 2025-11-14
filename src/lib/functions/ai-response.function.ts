@@ -11,6 +11,33 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import curl2Json from "@bany/curl-to-json";
 import { shouldUsePluelyAPI } from "./pluely.api";
+import { CHUNK_POLL_INTERVAL_MS } from "../chat-constants";
+import { getResponseSettings, RESPONSE_LENGTHS, LANGUAGES } from "@/lib";
+
+function buildEnhancedSystemPrompt(baseSystemPrompt?: string): string {
+  const responseSettings = getResponseSettings();
+  const prompts: string[] = [];
+
+  if (baseSystemPrompt) {
+    prompts.push(baseSystemPrompt);
+  }
+
+  const lengthOption = RESPONSE_LENGTHS.find(
+    (l) => l.id === responseSettings.responseLength
+  );
+  if (lengthOption?.prompt?.trim()) {
+    prompts.push(lengthOption.prompt);
+  }
+
+  const languageOption = LANGUAGES.find(
+    (l) => l.id === responseSettings.language
+  );
+  if (languageOption?.prompt?.trim()) {
+    prompts.push(languageOption.prompt);
+  }
+
+  return prompts.join(" ");
+}
 
 // Pluely AI streaming function
 async function* fetchPluelyAIResponse(params: {
@@ -18,6 +45,7 @@ async function* fetchPluelyAIResponse(params: {
   userMessage: string;
   imagesBase64?: string[];
   history?: Message[];
+  signal?: AbortSignal;
 }): AsyncIterable<string> {
   try {
     const {
@@ -25,12 +53,19 @@ async function* fetchPluelyAIResponse(params: {
       userMessage,
       imagesBase64 = [],
       history = [],
+      signal,
     } = params;
+
+    // Check if already aborted before starting
+    if (signal?.aborted) {
+      return;
+    }
 
     // Convert history to the expected format
     let historyString: string | undefined;
     if (history.length > 0) {
-      const formattedHistory = history.map((msg) => ({
+      // Create a copy before reversing to avoid mutating the original array
+      const formattedHistory = [...history].reverse().map((msg) => ({
         role: msg.role,
         content: [{ type: "text", text: msg.content }],
       }));
@@ -57,8 +92,15 @@ async function* fetchPluelyAIResponse(params: {
     });
 
     try {
-      // Start the streaming request
-      await invoke("chat_stream", {
+      // Check if aborted before starting invoke
+      if (signal?.aborted) {
+        unlisten();
+        unlistenComplete();
+        return;
+      }
+
+      // Start the streaming request using the new API response endpoint
+      await invoke("chat_stream_response", {
         userMessage,
         systemPrompt,
         imageBase64,
@@ -68,14 +110,37 @@ async function* fetchPluelyAIResponse(params: {
       // Yield chunks as they come in
       let lastIndex = 0;
       while (!streamComplete) {
+        // Check if aborted during streaming
+        if (signal?.aborted) {
+          unlisten();
+          unlistenComplete();
+          return;
+        }
+
         // Wait a bit for chunks to accumulate
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        await new Promise((resolve) =>
+          setTimeout(resolve, CHUNK_POLL_INTERVAL_MS)
+        );
+
+        // Check again after timeout
+        if (signal?.aborted) {
+          unlisten();
+          unlistenComplete();
+          return;
+        }
 
         // Yield any new chunks
         for (let i = lastIndex; i < streamChunks.length; i++) {
           yield streamChunks[i];
         }
         lastIndex = streamChunks.length;
+      }
+
+      // Final abort check before yielding remaining chunks
+      if (signal?.aborted) {
+        unlisten();
+        unlistenComplete();
+        return;
       }
 
       // Yield any remaining chunks
@@ -102,6 +167,7 @@ export async function* fetchAIResponse(params: {
   history?: Message[];
   userMessage: string;
   imagesBase64?: string[];
+  signal?: AbortSignal;
 }): AsyncIterable<string> {
   try {
     const {
@@ -111,16 +177,25 @@ export async function* fetchAIResponse(params: {
       history = [],
       userMessage,
       imagesBase64 = [],
+      signal,
     } = params;
+
+    // Check if already aborted
+    if (signal?.aborted) {
+      return;
+    }
+
+    const enhancedSystemPrompt = buildEnhancedSystemPrompt(systemPrompt);
 
     // Check if we should use Pluely API instead
     const usePluelyAPI = await shouldUsePluelyAPI();
     if (usePluelyAPI) {
       yield* fetchPluelyAIResponse({
-        systemPrompt,
+        systemPrompt: enhancedSystemPrompt,
         userMessage,
         imagesBase64,
         history,
+        signal,
       });
       return;
     }
@@ -190,7 +265,7 @@ export async function* fetchAIResponse(params: {
           value,
         ])
       ),
-      SYSTEM_PROMPT: systemPrompt || "",
+      SYSTEM_PROMPT: enhancedSystemPrompt || "",
     };
 
     bodyObj = deepVariableReplacer(bodyObj, allVariables);
@@ -220,8 +295,16 @@ export async function* fetchAIResponse(params: {
         method: curlJson.method || "POST",
         headers,
         body: curlJson.method === "GET" ? undefined : JSON.stringify(bodyObj),
+        signal,
       });
     } catch (fetchError) {
+      // Check if aborted
+      if (
+        signal?.aborted ||
+        (fetchError instanceof Error && fetchError.name === "AbortError")
+      ) {
+        return; // Silently return on abort
+      }
       yield `Network error during API request: ${
         fetchError instanceof Error ? fetchError.message : "Unknown error"
       }`;
@@ -265,10 +348,23 @@ export async function* fetchAIResponse(params: {
     let buffer = "";
 
     while (true) {
+      // Check if aborted
+      if (signal?.aborted) {
+        reader.cancel();
+        return;
+      }
+
       let readResult;
       try {
         readResult = await reader.read();
       } catch (readError) {
+        // Check if aborted
+        if (
+          signal?.aborted ||
+          (readError instanceof Error && readError.name === "AbortError")
+        ) {
+          return; // Silently return on abort
+        }
         yield `Error reading stream: ${
           readError instanceof Error ? readError.message : "Unknown error"
         }`;
@@ -276,6 +372,13 @@ export async function* fetchAIResponse(params: {
       }
       const { done, value } = readResult;
       if (done) break;
+
+      // Check if aborted before processing
+      if (signal?.aborted) {
+        reader.cancel();
+        return;
+      }
+
       buffer += decoder.decode(value, { stream: true });
 
       const lines = buffer.split("\n");
@@ -300,9 +403,10 @@ export async function* fetchAIResponse(params: {
       }
     }
   } catch (error) {
-    yield `Error in fetchAIResponse: ${
-      error instanceof Error ? error.message : "Unknown error"
-    }`;
-    return;
+    throw new Error(
+      `Error in fetchAIResponse: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
   }
 }

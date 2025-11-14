@@ -2,10 +2,6 @@ import { TYPE_PROVIDER } from "./provider.type";
 import { ScreenshotConfig, ScreenshotMode } from "./settings";
 
 export interface UseSettingsReturn {
-  isPopoverOpen: boolean;
-  setIsPopoverOpen: (isOpen: boolean) => void;
-  systemPrompt: string;
-  setSystemPrompt: React.Dispatch<React.SetStateAction<string>>;
   screenshotConfiguration: ScreenshotConfig;
   setScreenshotConfiguration: React.Dispatch<
     React.SetStateAction<ScreenshotConfig>
@@ -33,4 +29,5 @@ export interface UseSettingsReturn {
   setShowDeleteConfirmDialog: React.Dispatch<React.SetStateAction<boolean>>;
   variables: { key: string; value: string }[];
   sttVariables: { key: string; value: string }[];
+  hasActiveLicense: boolean;
 }

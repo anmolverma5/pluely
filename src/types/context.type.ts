@@ -1,6 +1,6 @@
 import { Dispatch, SetStateAction } from "react";
 import { ScreenshotConfig, TYPE_PROVIDER } from "@/types";
-import { CustomizableState } from "@/lib/storage";
+import { CursorType, CustomizableState } from "@/lib/storage";
 
 export type IContextType = {
   systemPrompt: string;
@@ -42,7 +42,22 @@ export type IContextType = {
   updateTransparencyOpacity: (opacity: number) => Promise<void>;
   togglePopoverTrigger: (isEnabled: boolean) => Promise<void>;
   updatePopoverTriggerOpacityValue: (opacity: number) => Promise<void>;
+  toggleAutostart: (isEnabled: boolean) => Promise<void>;
   loadData: () => void;
   pluelyApiEnabled: boolean;
   setPluelyApiEnabled: (enabled: boolean) => void;
+  hasActiveLicense: boolean;
+  setHasActiveLicense: Dispatch<SetStateAction<boolean>>;
+  getActiveLicenseStatus: () => Promise<void>;
+  selectedAudioDevices: {
+    input: string;
+    output: string;
+  };
+  setSelectedAudioDevices: Dispatch<
+    SetStateAction<{
+      input: string;
+      output: string;
+    }>
+  >;
+  setCursorType: (type: CursorType) => void;
 };

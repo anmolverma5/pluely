@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window on macOS",
-  "windows": ["main"],
+  "windows": ["main", "dashboard"],
   "platforms": ["macOS"],
   "permissions": [
     "core:default",
@@ -16,6 +16,15 @@
     "global-shortcut:allow-is-registered",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",
+    "shell:allow-open",
+    "core:window:allow-start-dragging",
+    "sql:default",
+    "sql:allow-execute",
+    "posthog:default",
+    "posthog:allow-capture",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled",
     {
       "identifier": "http:default",
       "allow": [{ "url": "http://**" }, { "url": "https://**" }]

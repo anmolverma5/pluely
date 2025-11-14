@@ -1,5 +1,7 @@
 import { STORAGE_KEYS } from "@/config";
 
+export type CursorType = "invisible" | "default" | "auto";
+
 export interface CustomizableState {
   appIcon: {
     isVisible: boolean;
@@ -15,13 +17,21 @@ export interface CustomizableState {
     isEnabled: boolean;
     opacity: number; // 0..1
   };
+  autostart: {
+    isEnabled: boolean;
+  };
+  cursor: {
+    type: CursorType;
+  };
 }
 
 export const DEFAULT_CUSTOMIZABLE_STATE: CustomizableState = {
-  appIcon: { isVisible: false },
-  alwaysOnTop: { isEnabled: true },
+  appIcon: { isVisible: true },
+  alwaysOnTop: { isEnabled: false },
   transparency: { isEnabled: true, opacity: 0.8 },
   popoverTrigger: { isEnabled: true, opacity: 0.25 },
+  autostart: { isEnabled: true },
+  cursor: { type: "invisible" },
 };
 
 /**
@@ -30,17 +40,22 @@ export const DEFAULT_CUSTOMIZABLE_STATE: CustomizableState = {
 export const getCustomizableState = (): CustomizableState => {
   try {
     const stored = localStorage.getItem(STORAGE_KEYS.CUSTOMIZABLE);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      // Ensure all required properties exist (for backward compatibility)
-      return {
-        appIcon: parsed.appIcon || DEFAULT_CUSTOMIZABLE_STATE.appIcon,
-        alwaysOnTop: parsed.alwaysOnTop || DEFAULT_CUSTOMIZABLE_STATE.alwaysOnTop,
-        transparency: parsed.transparency || DEFAULT_CUSTOMIZABLE_STATE.transparency,
-        popoverTrigger: parsed.popoverTrigger || DEFAULT_CUSTOMIZABLE_STATE.popoverTrigger,
-      };
+    if (!stored) {
+      return DEFAULT_CUSTOMIZABLE_STATE;
     }
-    return DEFAULT_CUSTOMIZABLE_STATE;
+
+    const parsedState = JSON.parse(stored);
+
+    // Ensure all required properties exist (for backward compatibility)
+    return {
+      appIcon: parsedState.appIcon || DEFAULT_CUSTOMIZABLE_STATE.appIcon,
+      alwaysOnTop:
+        parsedState.alwaysOnTop || DEFAULT_CUSTOMIZABLE_STATE.alwaysOnTop,
+      transparency: parsedState.transparency || DEFAULT_CUSTOMIZABLE_STATE.transparency,
+      popoverTrigger: parsedState.popoverTrigger || DEFAULT_CUSTOMIZABLE_STATE.popoverTrigger,
+      autostart: parsedState.autostart || DEFAULT_CUSTOMIZABLE_STATE.autostart,
+      cursor: parsedState.cursor || DEFAULT_CUSTOMIZABLE_STATE.cursor,
+    };
   } catch (error) {
     console.error("Failed to get customizable state:", error);
     return DEFAULT_CUSTOMIZABLE_STATE;
@@ -95,6 +110,26 @@ export const updateTransparency = (
       opacity: opacity ?? currentState.transparency.opacity,
     },
   };
+  setCustomizableState(newState);
+  return newState;
+};
+
+/**
+ * Update cursor type
+ */
+export const updateCursorType = (type: CursorType): CustomizableState => {
+  const currentState = getCustomizableState();
+  const newState = { ...currentState, cursor: { type } };
+  setCustomizableState(newState);
+  return newState;
+};
+
+/**
+ * Update autostart state
+ */
+export const updateAutostart = (isEnabled: boolean): CustomizableState => {
+  const currentState = getCustomizableState();
+  const newState = { ...currentState, autostart: { isEnabled } };
   setCustomizableState(newState);
   return newState;
 };
