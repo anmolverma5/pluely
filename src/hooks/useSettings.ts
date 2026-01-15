@@ -50,9 +50,7 @@ export const useSettings = () => {
   };
 
   const handleScreenshotEnabledChange = (enabled: boolean) => {
-    if (!enabled && !hasActiveLicense) {
-      return;
-    }
+    // License check removed - allow all users to toggle screenshot features
     const newConfig = { ...screenshotConfiguration, enabled };
     setScreenshotConfiguration(newConfig);
     safeLocalStorage.setItem(

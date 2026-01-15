@@ -9,6 +9,9 @@ import AppRoutes from "./routes";
 const currentWindow = getCurrentWindow();
 const windowLabel = currentWindow.label;
 
+console.log('[PLUELY DEBUG] Window label:', windowLabel);
+console.log('[PLUELY DEBUG] Current URL:', window.location.href);
+
 // Render different components based on window label
 if (windowLabel.startsWith("capture-overlay-")) {
   const monitorIndex = parseInt(windowLabel.split("-")[2], 10) || 0;

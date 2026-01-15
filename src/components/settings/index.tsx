@@ -7,26 +7,23 @@ import {
   Button,
   ScrollArea,
 } from "@/components";
-import { Disclaimer } from "./Disclaimer";
-import { SystemPrompt } from "./SystemPrompt";
-import { ScreenshotConfigs } from "./ScreenshotConfigs";
-import { AppIconToggle } from "./AppIconToggle";
-import { AlwaysOnTopToggle } from "./AlwaysOnTopToggle";
-import { TransparencyToggle } from "./TransparencyToggle";
-// (ButtonColorToggle removed)
-import { AIProviders } from "./ai-configs";
-import { STTProviders } from "./stt-configs";
-import { DeleteChats } from "./DeleteChats";
-import { PluelyApiSetup } from "./PluelyApiSetup";
+import { AppIconToggle } from "@/pages/settings/components/AppIconToggle";
+import { AlwaysOnTopToggle } from "@/pages/settings/components/AlwaysOnTopToggle";
+import { DeleteChats } from "@/pages/settings/components/DeleteChats";
+import { ResetPosition } from "@/pages/settings/components/ResetPosition";
+import { TransparencyToggle } from "@/pages/dev/components/TransparencyToggle";
+import { AIProviders } from "@/pages/dev/components/ai-configs";
+import { STTProviders } from "@/pages/dev/components/stt-configs";
+import { ScreenshotConfigs } from "@/pages/screenshot/components/ScreenshotConfigs";
+import { PluelyApiSetup } from "@/pages/dashboard/components/PluelyApiSetup";
+import SystemPrompt from "@/pages/system-prompts";
+import Disclaimer from "@/pages/responses";
 
 export const Settings = () => {
   const settings = useSettings();
 
   return (
-    <Popover
-      open={settings?.isPopoverOpen}
-      onOpenChange={settings?.setIsPopoverOpen}
-    >
+    <Popover>
       <PopoverTrigger asChild>
         <Button
           size="icon"
@@ -51,7 +48,7 @@ export const Settings = () => {
             <PluelyApiSetup />
 
             {/* System Prompt */}
-            <SystemPrompt {...settings} />
+            <SystemPrompt />
 
             {/* Screenshot Configs */}
             <ScreenshotConfigs {...settings} />
@@ -61,6 +58,9 @@ export const Settings = () => {
 
             {/* Always On Top Toggle */}
             <AlwaysOnTopToggle />
+
+            {/* Reset Window Position */}
+            <ResetPosition />
 
             {/* Transparency Toggle */}
             <TransparencyToggle />

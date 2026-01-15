@@ -71,4 +71,14 @@ export const DEFAULT_SHORTCUT_ACTIONS: ShortcutAction[] = [
       linux: "ctrl+shift+s",
     },
   },
+  {
+    id: "reset_position",
+    name: "Reset Position",
+    description: "Reset window to center of screen",
+    defaultKey: {
+      macos: "cmd+r",
+      windows: "ctrl+r",
+      linux: "ctrl+r",
+    },
+  },
 ];

@@ -6,11 +6,12 @@ import {
   Header,
   Button,
 } from "@/components";
-import { MicIcon, RefreshCwIcon, HeadphonesIcon } from "lucide-react";
-import { useState } from "react";
+import { MicIcon, RefreshCwIcon, HeadphonesIcon, SettingsIcon, InfoIcon } from "lucide-react";
+import { useState, useEffect } from "react";
 import { useApp } from "@/contexts";
 import { STORAGE_KEYS } from "@/config/constants";
 import { safeLocalStorage } from "@/lib/storage";
+import { invoke } from "@tauri-apps/api/core";
 
 export const AudioSelection = () => {
   const { selectedAudioDevices, setSelectedAudioDevices } = useApp();
@@ -23,6 +24,7 @@ export const AudioSelection = () => {
     output: [],
   });
   const [isLoadingDevices, setIsLoadingDevices] = useState(false);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState<{
     input: boolean;
     output: boolean;
@@ -54,25 +56,35 @@ export const AudioSelection = () => {
 
   // Load all audio devices (input and output)
   const loadAudioDevices = async () => {
+    console.log('[AUDIO] Starting to load audio devices...');
     setIsLoadingDevices(true);
+    setPermissionError(null);
+
     try {
       // Request microphone permission first
+      console.log('[AUDIO] Requesting microphone permission...');
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
       });
+      console.log('[AUDIO] Permission granted, stopping stream...');
+
       setTimeout(async () => {
         stream.getTracks().forEach((track) => track.stop());
       }, 2000);
 
       // Enumerate all audio devices
+      console.log('[AUDIO] Enumerating devices...');
       const allDevices = await navigator.mediaDevices.enumerateDevices();
-      console.log(allDevices, "allDevices");
+      console.log('[AUDIO] All devices:', allDevices);
+
       const audioInputs = allDevices.filter(
         (device) => device.kind === "audioinput"
       );
       const audioOutputs = allDevices.filter(
         (device) => device.kind === "audiooutput"
       );
+
+      console.log('[AUDIO] Found inputs:', audioInputs.length, 'outputs:', audioOutputs.length);
 
       setDevices({ input: audioInputs, output: audioOutputs });
 
@@ -87,10 +99,44 @@ export const AudioSelection = () => {
         audioOutputs,
         STORAGE_KEYS.SELECTED_AUDIO_OUTPUT_DEVICE
       );
-    } catch (error) {
-      console.error("Error loading audio devices:", error);
+
+      console.log('[AUDIO] Devices loaded successfully');
+    } catch (error: any) {
+      console.error('[AUDIO ERROR] Failed to load audio devices:', error);
+
+      // Check if it's a permission error
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        console.error('[AUDIO ERROR] Microphone permission denied by user');
+        setPermissionError('Microphone permission denied. Please allow microphone access and click refresh.');
+      } else if (error.name === 'NotFoundError') {
+        console.error('[AUDIO ERROR] No audio input devices found');
+        setPermissionError('No microphone devices found. Please connect a microphone and click refresh.');
+      } else {
+        console.error('[AUDIO ERROR] Unknown error:', error.message);
+        setPermissionError(`Error loading devices: ${error.message}`);
+      }
     } finally {
       setIsLoadingDevices(false);
+    }
+  };
+
+  // Auto-load devices when component mounts
+  useEffect(() => {
+    console.log('[AUDIO] Component mounted, auto-loading devices...');
+    loadAudioDevices();
+  }, []);
+
+  // Open Windows microphone settings
+  const openWindowsMicrophoneSettings = async () => {
+    try {
+      // Open Windows microphone privacy settings
+      await invoke("open_windows_settings", {
+        setting: "ms-settings:privacy-microphone"
+      });
+    } catch (error) {
+      console.error("[AUDIO] Failed to open Windows settings:", error);
+      // Fallback: just log the instruction
+      alert("Please open Windows Settings → Privacy & Security → Microphone to enable microphone access.");
     }
   };
 
@@ -116,6 +162,36 @@ export const AudioSelection = () => {
 
   return (
     <div id="audio" className="space-y-1 flex flex-col gap-4">
+      {/* Windows Permission Info */}
+      <div className="text-xs bg-blue-500/10 border border-blue-500/20 p-4 rounded-md space-y-3">
+        <div className="flex items-start gap-2">
+          <InfoIcon className="size-4 text-blue-500 mt-0.5 shrink-0" />
+          <div className="space-y-2">
+            <p className="text-blue-500 font-medium">
+              <strong>Windows Microphone Permissions Required</strong>
+            </p>
+            <p className="text-foreground/70">
+              If devices don't appear, Windows may have blocked microphone access.
+              Click the button below to open Windows microphone settings.
+            </p>
+            <div className="flex items-center gap-2 pt-1">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={openWindowsMicrophoneSettings}
+                className="text-xs"
+              >
+                <SettingsIcon className="size-3 mr-1.5" />
+                Open Windows Microphone Settings
+              </Button>
+              <span className="text-muted-foreground text-xs">
+                Then click the refresh button below
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Microphone Input Section */}
       <div className="space-y-3">
         <Header
@@ -139,8 +215,8 @@ export const AudioSelection = () => {
                       {isLoadingDevices
                         ? "Loading microphones..."
                         : devices.input.length === 0
-                        ? "No microphones found"
-                        : devices.input.find(
+                          ? "No microphones found"
+                          : devices.input.find(
                             (mic) => mic.deviceId === selectedAudioDevices.input
                           )?.label || "Select a microphone"}
                     </div>
@@ -189,14 +265,19 @@ export const AudioSelection = () => {
             </div>
           )}
 
-          {/* Permission Notice */}
-          {devices.input.length === 0 && !isLoadingDevices && (
+          {/* Permission/Error Notice */}
+          {permissionError && (
+            <div className="text-xs text-red-500 bg-red-500/10 p-3 rounded-md">
+              <strong>❌ {permissionError}</strong>
+            </div>
+          )}
+
+          {!permissionError && devices.input.length === 0 && !isLoadingDevices && (
             <div className="text-xs text-amber-500 bg-amber-500/10 p-3 rounded-md">
               <strong>
-                ⚠️ Click the refresh button to load your microphone devices.
+                ⚠️ No microphones detected.
               </strong>{" "}
-              If this doesn't work, try changing your default microphone in your
-              system settings.
+              Click the refresh button to try again. If this doesn't work, check your system settings.
             </div>
           )}
         </div>
@@ -235,8 +316,8 @@ export const AudioSelection = () => {
                       {isLoadingDevices
                         ? "Loading output devices..."
                         : devices.output.length === 0
-                        ? "No output devices found"
-                        : devices.output.find(
+                          ? "No output devices found"
+                          : devices.output.find(
                             (output) =>
                               output.deviceId === selectedAudioDevices.output
                           )?.label || "Select an output device"}
@@ -285,14 +366,19 @@ export const AudioSelection = () => {
             </div>
           )}
 
-          {/* Permission Notice */}
-          {devices.output.length === 0 && !isLoadingDevices && (
+          {/* Permission/Error Notice */}
+          {permissionError && (
+            <div className="text-xs text-red-500 bg-red-500/10 p-3 rounded-md">
+              <strong>❌ {permissionError}</strong>
+            </div>
+          )}
+
+          {!permissionError && devices.output.length === 0 && !isLoadingDevices && (
             <div className="text-xs text-amber-500 bg-amber-500/10 p-3 rounded-md">
               <strong>
-                ⚠️ Click the refresh button to load your system audio devices.
+                ⚠️ No output devices detected.
               </strong>{" "}
-              If this doesn't work, try changing your default system audio
-              output in your system settings.
+              Click the refresh button to try again. If this doesn't work, check your system audio settings.
             </div>
           )}
         </div>

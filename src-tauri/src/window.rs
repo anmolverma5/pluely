@@ -53,7 +53,7 @@ pub fn position_window_top_center(
 
 /// Future function for centering window completely (both X and Y)
 #[allow(dead_code)]
-pub fn center_window_completely(window: &WebviewWindow) -> Result<(), Box<dyn std::error::Error>> {
+pub fn center_window_completely<R: Runtime>(window: &WebviewWindow<R>) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(monitor) = window.primary_monitor()? {
         let monitor_size = monitor.size();
         let window_size = window.outer_size()?;
@@ -85,21 +85,54 @@ pub fn set_window_height(window: tauri::WebviewWindow, height: u32) -> Result<()
 
 #[tauri::command]
 pub fn open_dashboard(app: tauri::AppHandle) -> Result<(), String> {
+    eprintln!("[RUST] ===== open_dashboard CALLED =====");
+    
+    // Log all existing windows
+    let all_windows: Vec<String> = app.webview_windows().keys().map(|k| k.to_string()).collect();
+    eprintln!("[RUST] All existing windows: {:?}", all_windows);
+    eprintln!("[RUST] Total window count: {}", all_windows.len());
+    
     // Check if dashboard window already exists
-    if let Some(dashboard_window) = app.get_webview_window("dashboard") {
-        // Window exists, just focus and show it
+    let dashboard_exists = app.get_webview_window("dashboard");
+    eprintln!("[RUST] Dashboard window exists: {}", dashboard_exists.is_some());
+    
+    if let Some(dashboard_window) = dashboard_exists {
+        eprintln!("[RUST] Dashboard window found - reusing existing window");
+        
+        // Check if window is visible
+        match dashboard_window.is_visible() {
+            Ok(visible) => eprintln!("[RUST] Window is_visible: {}", visible),
+            Err(e) => eprintln!("[RUST] Failed to check visibility: {}", e),
+        }
+        
+        // Check if window is minimized/closed
+        match dashboard_window.is_closable() {
+            Ok(closable) => eprintln!("[RUST] Window is_closable: {}", closable),
+            Err(e) => eprintln!("[RUST] Failed to check closable: {}", e),
+        }
+        
+        eprintln!("[RUST] Setting focus...");
         dashboard_window
             .set_focus()
             .map_err(|e| format!("Failed to focus dashboard window: {}", e))?;
+        eprintln!("[RUST] Focus set successfully");
+        
+        eprintln!("[RUST] Showing window...");
         dashboard_window
             .show()
             .map_err(|e| format!("Failed to show dashboard window: {}", e))?;
+        eprintln!("[RUST] Window shown successfully");
     } else {
-        // Window doesn't exist, create it with platform-aware defaults
+        eprintln!("[RUST] Dashboard window doesn't exist, creating new window...");
+        eprintln!("[RUST] WARNING: Window was created at startup but now missing!");
+        eprintln!("[RUST] This might cause the second build to hang!");
+        
         create_dashboard_window(&app)
             .map_err(|e| format!("Failed to create dashboard window: {}", e))?;
+        eprintln!("[RUST] Dashboard window created successfully");
     }
 
+    eprintln!("[RUST] open_dashboard completed");
     Ok(())
 }
 
@@ -163,11 +196,36 @@ pub fn move_window(app: tauri::AppHandle, direction: String, step: i32) -> Resul
     Ok(())
 }
 
+#[tauri::command]
+pub fn reset_window_position<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        // First, make sure the window is visible and focused
+        window
+            .show()
+            .map_err(|e| format!("Failed to show window: {}", e))?;
+        
+        window
+            .set_focus()
+            .map_err(|e| format!("Failed to focus window: {}", e))?;
+
+        // Use the existing center_window_completely function to center the window
+        center_window_completely(&window)
+            .map_err(|e| format!("Failed to center window: {}", e))?;
+    } else {
+        return Err("Main window not found".to_string());
+    }
+
+    Ok(())
+}
+
 pub fn create_dashboard_window<R: Runtime>(
     app: &AppHandle<R>,
 ) -> Result<WebviewWindow<R>, tauri::Error> {
+    eprintln!("[RUST] create_dashboard_window - Starting...");
+    eprintln!("[RUST] Creating window with URL: /dashboard");
+    
     let base_builder =
-        WebviewWindowBuilder::new(app, "dashboard", tauri::WebviewUrl::App("/chats".into()));
+        WebviewWindowBuilder::new(app, "dashboard", tauri::WebviewUrl::App("/dashboard".into()));
 
     #[cfg(target_os = "macos")]
     let base_builder = base_builder
@@ -192,5 +250,36 @@ pub fn create_dashboard_window<R: Runtime>(
         .content_protected(true)
         .visible(true);
 
-    base_builder.build()
+    eprintln!("[RUST] Building window...");
+    let window = base_builder.build()?;
+    
+    eprintln!("[RUST] Window built successfully");
+    
+    // Clone window for the closure
+    let window_clone = window.clone();
+    
+    // Intercept close event to hide window instead of destroying it
+    window.on_window_event(move |event| {
+        match event {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
+                eprintln!("[RUST WINDOW EVENT] Dashboard close requested - hiding instead of closing");
+                // Prevent the window from being destroyed
+                api.prevent_close();
+                // Hide the window instead
+                let _ = window_clone.hide();
+                eprintln!("[RUST WINDOW EVENT] Dashboard window hidden");
+            }
+            tauri::WindowEvent::Destroyed => {
+                eprintln!("[RUST WINDOW EVENT] Dashboard window destroyed!");
+            }
+            tauri::WindowEvent::Focused(focused) => {
+                eprintln!("[RUST WINDOW EVENT] Dashboard focus changed: {}", focused);
+            }
+            _ => {}
+        }
+    });
+    
+    eprintln!("[RUST] Window event listeners attached (close = hide)");
+    
+    Ok(window)
 }

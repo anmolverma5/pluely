@@ -15,7 +15,7 @@ import {
   Button,
   ScrollArea,
 } from "@/components";
-import { loadChatHistory, deleteConversation } from "@/lib";
+import { loadChatHistory, deleteConversation } from "@/lib/chat-history";
 import { ChatConversation } from "@/types/completion";
 import { useWindowResize, useWindowFocus } from "@/hooks";
 
@@ -217,11 +217,10 @@ export const ChatHistory = ({
                 {conversations.map((conversation) => (
                   <div
                     key={conversation.id}
-                    className={`group flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:bg-muted/50 ${
-                      conversation.id === currentConversationId
-                        ? "bg-muted border-primary/20"
-                        : "border-transparent hover:border-input/50"
-                    }`}
+                    className={`group flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:bg-muted/50 ${conversation.id === currentConversationId
+                      ? "bg-muted border-primary/20"
+                      : "border-transparent hover:border-input/50"
+                      }`}
                     onClick={() => handleSelectConversation(conversation)}
                   >
                     <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />

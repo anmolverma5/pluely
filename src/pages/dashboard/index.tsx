@@ -6,9 +6,13 @@ import { PageLayout } from "@/layouts";
 import { useApp } from "@/contexts";
 
 const Dashboard = () => {
+  console.log('[DASHBOARD] Component mounting...');
+
   const { hasActiveLicense } = useApp();
   const [activity, setActivity] = useState<any>(null);
   const [loadingActivity, setLoadingActivity] = useState(false);
+
+  console.log('[DASHBOARD] hasActiveLicense:', hasActiveLicense);
 
   const fetchActivity = useCallback(async () => {
     if (!hasActiveLicense) {

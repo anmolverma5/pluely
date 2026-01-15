@@ -29,6 +29,24 @@ fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+#[tauri::command]
+async fn open_windows_settings(setting: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        // Use Windows start command to open settings URI
+        Command::new("cmd")
+            .args(["/C", "start", &setting])
+            .spawn()
+            .map_err(|e| format!("Failed to open Windows settings: {}", e))?;
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("This command is only available on Windows".to_string())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Get PostHog API key
@@ -77,6 +95,7 @@ pub fn run() {
             window::open_dashboard,
             window::toggle_dashboard,
             window::move_window,
+            window::reset_window_position,
             capture::capture_to_base64,
             capture::start_screen_capture,
             capture::capture_selected_area,
@@ -112,6 +131,7 @@ pub fn run() {
             speaker::update_vad_config,
             speaker::get_capture_status,
             speaker::get_audio_sample_rate,
+            open_windows_settings,
         ])
         .setup(|app| {
             // Setup main window positioning

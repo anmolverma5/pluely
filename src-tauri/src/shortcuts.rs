@@ -109,6 +109,7 @@ pub fn handle_shortcut_action<R: Runtime>(app: &AppHandle<R>, action_id: &str) {
         "audio_recording" => handle_audio_shortcut(app),
         "screenshot" => handle_screenshot_shortcut(app),
         "system_audio" => handle_system_audio_shortcut(app),
+        "reset_position" => handle_reset_position(app),
         custom_action => {
             // Emit custom action event for frontend to handle
             if let Some(window) = app.get_webview_window("main") {
@@ -187,8 +188,11 @@ pub fn stop_all_move_windows<R: Runtime>(app: &AppHandle<R>) {
 
 /// Handle app toggle (hide/show) with input focus and app icon management
 fn handle_toggle_window<R: Runtime>(app: &AppHandle<R>) {
+    println!("🔔 toggle_window shortcut triggered!");
+    
     // Get the main window
     let Some(window) = app.get_webview_window("main") else {
+        println!("❌ Main window not found");
         return;
     };
 
@@ -197,6 +201,12 @@ fn handle_toggle_window<R: Runtime>(app: &AppHandle<R>) {
         let state = app.state::<WindowVisibility>();
         let mut is_hidden = state.is_hidden.lock().unwrap();
         *is_hidden = !*is_hidden;
+
+        if *is_hidden {
+            println!("🙈 Hiding window (Windows)");
+        } else {
+            println!("👁️  Showing window (Windows)");
+        }
 
         if let Err(e) = window.emit("toggle-window-visibility", *is_hidden) {
             eprintln!("Failed to emit toggle-window-visibility event: {}", e);
@@ -219,6 +229,7 @@ fn handle_toggle_window<R: Runtime>(app: &AppHandle<R>) {
     #[cfg(not(target_os = "windows"))]
     match window.is_visible() {
         Ok(true) => {
+            println!("🙈 Hiding window");
             #[cfg(target_os = "macos")]
             {
                 let panel = app.get_webview_window("main").unwrap();
@@ -230,6 +241,7 @@ fn handle_toggle_window<R: Runtime>(app: &AppHandle<R>) {
             }
         }
         Ok(false) => {
+            println!("👁️  Showing window");
             // Window is hidden, show it and handle app icon based on user settings
             if let Err(e) = window.show() {
                 eprintln!("Failed to show window: {}", e);
@@ -616,6 +628,17 @@ fn handle_focus_input<R: Runtime>(app: &AppHandle<R>) {
 
         let _ = window.set_focus();
         let _ = window.emit("focus-text-input", json!({}));
+    }
+}
+
+/// Handle reset position shortcut
+fn handle_reset_position<R: Runtime>(app: &AppHandle<R>) {
+    use crate::window::reset_window_position;
+    
+    if let Err(e) = reset_window_position(app.clone()) {
+        eprintln!("Failed to reset window position: {}", e);
+    } else {
+        eprintln!("Window position reset successfully");
     }
 }
 

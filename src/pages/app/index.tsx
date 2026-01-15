@@ -19,10 +19,13 @@ const App = () => {
   const platform = getPlatform();
 
   const openDashboard = async () => {
+    console.log('[APP] ===== DASHBOARD OPEN CLICKED =====');
+    console.log('[APP] Calling invoke("open_dashboard")...');
     try {
       await invoke("open_dashboard");
+      console.log('[APP] invoke("open_dashboard") completed successfully');
     } catch (error) {
-      console.error("Failed to open dashboard:", error);
+      console.error('[APP ERROR] Failed to open dashboard:', error);
     }
   };
 
@@ -37,9 +40,8 @@ const App = () => {
       }}
     >
       <div
-        className={`w-screen h-screen flex overflow-hidden justify-center items-start ${
-          isHidden ? "hidden pointer-events-none" : ""
-        }`}
+        className={`w-screen h-screen flex overflow-hidden justify-center items-start ${isHidden ? "hidden pointer-events-none" : ""
+          }`}
       >
         <Card className="w-full flex flex-row items-center gap-2 p-2">
           <SystemAudio {...systemAudio} />
@@ -64,11 +66,10 @@ const App = () => {
           ) : null}
 
           <div
-            className={`${
-              systemAudio?.capturing
+            className={`${systemAudio?.capturing
                 ? "hidden w-full fade-out transition-all duration-300"
                 : "w-full flex flex-row gap-2 items-center"
-            }`}
+              }`}
           >
             <Completion isHidden={isHidden} />
             <Button

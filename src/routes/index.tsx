@@ -15,6 +15,11 @@ import {
 import { DashboardLayout } from "@/layouts";
 
 export default function AppRoutes() {
+  console.log('[ROUTES] ===== AppRoutes INITIALIZING =====');
+  console.log('[ROUTES] Current URL:', window.location.href);
+  console.log('[ROUTES] Current hash:', window.location.hash);
+  console.log('[ROUTES] Current pathname:', window.location.pathname);
+
   return (
     <Router>
       <Routes>

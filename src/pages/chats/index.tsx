@@ -6,8 +6,12 @@ import moment from "moment";
 import { useNavigate } from "react-router-dom";
 
 const Dashboard = () => {
+  console.log('[CHATS] Component mounting...');
+
   const conversations = useHistory();
   const navigate = useNavigate();
+
+  console.log('[CHATS] Conversations count:', conversations.conversations.length);
   // Group conversations by date
   const groupedConversations = conversations.conversations.reduce(
     (acc, doc) => {
@@ -56,10 +60,10 @@ const Dashboard = () => {
                 conversations?.search?.length === 0
                   ? true
                   : groupedConversations?.[dateKey]?.some((doc) =>
-                      doc?.title
-                        .toLowerCase()
-                        .includes(conversations?.search?.toLowerCase() || "")
-                    )
+                    doc?.title
+                      .toLowerCase()
+                      .includes(conversations?.search?.toLowerCase() || "")
+                  )
               )
               .map((dateKey) => (
                 <div key={dateKey} className="flex flex-col gap-3">

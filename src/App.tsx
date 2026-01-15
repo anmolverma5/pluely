@@ -1,8 +1,8 @@
 import { Card, Settings, SystemAudio, Updater } from "./components";
-import { Completion } from "./components/completion";
+import { Completion } from "./pages/app/components/completion";
 import { ChatHistory } from "./components/history";
-import { AudioVisualizer } from "./components/speech/audio-visualizer";
-import { StatusIndicator } from "./components/speech/StatusIndicator";
+import { AudioVisualizer } from "./pages/app/components/speech/audio-visualizer";
+import { StatusIndicator } from "./pages/app/components/speech/StatusIndicator";
 import { useSystemAudio } from "./hooks/useSystemAudio";
 import { useTransparency } from "./hooks/useTransparency";
 // button border color customization removed
@@ -36,7 +36,7 @@ const App = () => {
         {systemAudio?.capturing ? (
           <div className="flex flex-row items-center gap-2 justify-between w-full">
             <div className="flex flex-1 items-center gap-2">
-              <AudioVisualizer isRecording={systemAudio?.capturing} />
+              <AudioVisualizer isRecording={systemAudio?.capturing} stream={systemAudio?.stream || null} />
             </div>
             <div className="flex !w-fit items-center gap-2">
               <StatusIndicator
@@ -51,13 +51,12 @@ const App = () => {
         ) : null}
 
         <div
-          className={`${
-            systemAudio?.capturing
-              ? "hidden w-full fade-out transition-all duration-300"
-              : "w-full flex flex-row gap-2 items-center"
-          }`}
+          className={`${systemAudio?.capturing
+            ? "hidden w-full fade-out transition-all duration-300"
+            : "w-full flex flex-row gap-2 items-center"
+            }`}
         >
-          <Completion />
+          <Completion isHidden={false} />
           <ChatHistory
             onSelectConversation={handleSelectConversation}
             onNewConversation={handleNewConversation}

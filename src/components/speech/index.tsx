@@ -11,12 +11,11 @@ import {
   LoaderIcon,
   AudioLinesIcon,
 } from "lucide-react";
-import { Warning } from "./Warning";
-import { Header } from "./Header";
-import { SetupInstructions } from "./SetupInstructions";
-import { OperationSection } from "./OperationSection";
-import { Settings } from "./Settings";
-import { Context } from "./Context";
+import { Warning } from "@/pages/app/components/speech/Warning";
+import { Header } from "@/pages/app/components/speech/Header";
+import { SetupInstructions } from "@/pages/app/components/speech/SetupInstructions";
+import { OperationSection } from "@/pages/app/components/speech/OperationSection";
+import { Context } from "@/pages/app/components/speech/Context";
 import { useSystemAudioType } from "@/hooks";
 
 export const SystemAudio = ({
@@ -29,15 +28,6 @@ export const SystemAudio = ({
   setupRequired,
   startCapture,
   stopCapture,
-  settings,
-  showSettings,
-  setShowSettings,
-  updateSetting,
-  resetSettings,
-  debugInfo,
-  testResults,
-  handleDebugDevices,
-  handleTestAudioLevels,
   isPopoverOpen,
   setIsPopoverOpen,
   useSystemPrompt,
@@ -47,6 +37,14 @@ export const SystemAudio = ({
   startNewConversation,
   conversation,
   resizeWindow,
+  quickActions,
+  addQuickAction,
+  removeQuickAction,
+  isManagingQuickActions,
+  setIsManagingQuickActions,
+  showQuickActions,
+  setShowQuickActions,
+  handleQuickActionClick,
 }: useSystemAudioType) => {
   const handleToggleCapture = async () => {
     if (capturing) {
@@ -90,9 +88,8 @@ export const SystemAudio = ({
           size="icon"
           title={getButtonTitle()}
           onClick={handleToggleCapture}
-          className={`${capturing ? "bg-green-50 hover:bg-green-100" : ""} ${
-            error ? "bg-red-100 hover:bg-red-200" : ""
-          }`}
+          className={`${capturing ? "bg-green-50 hover:bg-green-100" : ""} ${error ? "bg-red-100 hover:bg-red-200" : ""
+            }`}
         >
           {getButtonIcon()}
         </Button>
@@ -107,11 +104,10 @@ export const SystemAudio = ({
         >
           <ScrollArea className="h-full">
             <div
-              className={`p-6 ${
-                !lastTranscription && !lastAIResponse
-                  ? "space-y-6"
-                  : "space-y-4"
-              }`}
+              className={`p-6 ${!lastTranscription && !lastAIResponse
+                ? "space-y-6"
+                : "space-y-4"
+                }`}
             >
               {/* Header - Hide when there are messages to save space */}
               {!lastTranscription && !lastAIResponse && (
@@ -145,11 +141,8 @@ export const SystemAudio = ({
               {setupRequired ? (
                 // Setup Instructions Section
                 <SetupInstructions
-                  handleDebugDevices={handleDebugDevices}
-                  handleTestAudioLevels={handleTestAudioLevels}
-                  startCapture={startCapture}
-                  debugInfo={debugInfo}
-                  testResults={testResults}
+                  setupRequired={setupRequired}
+                  handleSetup={startCapture}
                 />
               ) : (
                 <>
@@ -160,6 +153,14 @@ export const SystemAudio = ({
                     isAIProcessing={isAIProcessing}
                     conversation={conversation}
                     startNewConversation={startNewConversation}
+                    quickActions={quickActions}
+                    addQuickAction={addQuickAction}
+                    removeQuickAction={removeQuickAction}
+                    isManagingQuickActions={isManagingQuickActions}
+                    setIsManagingQuickActions={setIsManagingQuickActions}
+                    showQuickActions={showQuickActions}
+                    setShowQuickActions={setShowQuickActions}
+                    handleQuickActionClick={handleQuickActionClick}
                   />
                   {/* Context Settings */}
                   <Context
@@ -168,15 +169,15 @@ export const SystemAudio = ({
                     contextContent={contextContent}
                     setContextContent={setContextContent}
                   />
-                  {/* Audio Settings */}
-                  <Settings
+                  {/* Audio Settings - Commented out until Settings component props are available */}
+                  {/* <Settings
                     capturing={capturing}
                     showSettings={showSettings}
                     setShowSettings={setShowSettings}
                     resetSettings={resetSettings}
                     settings={settings}
                     updateSetting={updateSetting}
-                  />
+                  /> */}
                 </>
               )}
 

@@ -6,11 +6,18 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useMenuItems, useVersion } from "@/hooks";
 
 export const Sidebar = () => {
+  console.log('[SIDEBAR] ===== Sidebar RENDERING =====');
+
   const { version, isLoading } = useVersion();
   const { menu, footerLinks, footerItems } = useMenuItems();
 
   const navigate = useNavigate();
   const activeRoute = useLocation().pathname;
+
+  console.log('[SIDEBAR] Active route:', activeRoute);
+  console.log('[SIDEBAR] Menu items count:', menu.length);
+  console.log('[SIDEBAR] Version:', version, 'Loading:', isLoading);
+
   return (
     <aside className="flex w-56 flex-col select-none pt-2">
       {/* Logo */}
