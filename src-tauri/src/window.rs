@@ -29,8 +29,8 @@ pub fn setup_main_window(app: &mut App) -> Result<(), Box<dyn std::error::Error>
 }
 
 /// Positions a window at the top center of the screen with a specified Y offset
-pub fn position_window_top_center(
-    window: &WebviewWindow,
+pub fn position_window_top_center<R: Runtime>(
+    window: &WebviewWindow<R>,
     y_offset: i32,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Get the primary monitor
@@ -208,9 +208,9 @@ pub fn reset_window_position<R: Runtime>(app: AppHandle<R>) -> Result<(), String
             .set_focus()
             .map_err(|e| format!("Failed to focus window: {}", e))?;
 
-        // Use the existing center_window_completely function to center the window
-        center_window_completely(&window)
-            .map_err(|e| format!("Failed to center window: {}", e))?;
+        // Position the window at top center of the screen
+        position_window_top_center(&window, TOP_OFFSET)
+            .map_err(|e| format!("Failed to position window: {}", e))?;
     } else {
         return Err("Main window not found".to_string());
     }

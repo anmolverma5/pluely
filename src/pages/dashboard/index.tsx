@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { GetLicense } from "@/components";
-import { PluelyApiSetup, Usage } from "./components";
+import { PluelyApiSetup, Usage, LayoutSelector } from "./components";
 import { PageLayout } from "@/layouts";
 import { useApp } from "@/contexts";
 
@@ -58,6 +58,9 @@ const Dashboard = () => {
     >
       {/* Pluely API Setup */}
       <PluelyApiSetup />
+
+      {/* Layout Selector - Theme Switcher */}
+      <LayoutSelector />
 
       <Usage
         loading={!hasActiveLicense || loadingActivity}

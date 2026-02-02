@@ -21,6 +21,9 @@ export const STORAGE_KEYS = {
   SELECTED_AUDIO_OUTPUT_DEVICE: "selected_audio_output_device",
   RESPONSE_SETTINGS: "response_settings",
   CHAT_HISTORY: "chat_history",
+  DASHBOARD_LAYOUT: "dashboard_layout",
+  ADVANCE_THEME_TRANSCRIPT: "advance_theme_transcript",
+  ADVANCE_THEME_AI_CHAT_VISIBLE: "advance_theme_ai_chat_visible",
 } as const;
 
 // Max number of files that can be attached to a message

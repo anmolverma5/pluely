@@ -204,17 +204,23 @@ fn handle_toggle_window<R: Runtime>(app: &AppHandle<R>) {
 
         if *is_hidden {
             println!("🙈 Hiding window (Windows)");
+            // Ignore cursor events when hidden to prevent mouse interference
+            if let Err(e) = window.set_ignore_cursor_events(true) {
+                eprintln!("Failed to set ignore cursor events: {}", e);
+            }
+            // Actually hide the window
+            if let Err(e) = window.hide() {
+                eprintln!("Failed to hide window: {}", e);
+            }
         } else {
             println!("👁️  Showing window (Windows)");
-        }
-
-        if let Err(e) = window.emit("toggle-window-visibility", *is_hidden) {
-            eprintln!("Failed to emit toggle-window-visibility event: {}", e);
-        }
-
-        if !*is_hidden {
+            // Show the window first
             if let Err(e) = window.show() {
                 eprintln!("Failed to show window: {}", e);
+            }
+            // Re-enable cursor events when showing
+            if let Err(e) = window.set_ignore_cursor_events(false) {
+                eprintln!("Failed to unset ignore cursor events: {}", e);
             }
             if let Err(e) = window.set_focus() {
                 eprintln!("Failed to focus window: {}", e);
@@ -230,6 +236,10 @@ fn handle_toggle_window<R: Runtime>(app: &AppHandle<R>) {
     match window.is_visible() {
         Ok(true) => {
             println!("🙈 Hiding window");
+            // Ignore cursor events when hidden to prevent mouse interference
+            if let Err(e) = window.set_ignore_cursor_events(true) {
+                eprintln!("Failed to set ignore cursor events: {}", e);
+            }
             #[cfg(target_os = "macos")]
             {
                 let panel = app.get_webview_window("main").unwrap();
@@ -242,6 +252,10 @@ fn handle_toggle_window<R: Runtime>(app: &AppHandle<R>) {
         }
         Ok(false) => {
             println!("👁️  Showing window");
+            // Re-enable cursor events when showing
+            if let Err(e) = window.set_ignore_cursor_events(false) {
+                eprintln!("Failed to unset ignore cursor events: {}", e);
+            }
             // Window is hidden, show it and handle app icon based on user settings
             if let Err(e) = window.show() {
                 eprintln!("Failed to show window: {}", e);
